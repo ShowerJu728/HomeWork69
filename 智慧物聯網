@@ -1,0 +1,94 @@
+#include <DHT.h>
+#include <IRremote.h>
+
+const int DHT_PIN = 2;              
+const int IR_LED_PIN = 3;          
+const int IR_RECEIVER_PIN = 4;     
+const int NUM_READINGS = 10;       
+
+DHT dht(DHT_PIN, DHT11);          
+IRsend irsend(IR_LED_PIN);          
+IRrecv irrecv(IR_RECEIVER_PIN);     
+decode_results irResults;           
+
+float temperatureReadings[NUM_READINGS];   
+float humidityReadings[NUM_READINGS];     
+int index = 0;                            
+float temperatureAverage = 0;               
+float humidityAverage = 0;                  
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+  irrecv.enableIRIn();
+}
+
+void loop() {
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+  
+  if (isnan(temperature) || isnan(humidity)) {
+    Serial.println("Failed to read temperature and humidity from DHT sensor!");
+    return;
+  }
+  
+  updateReadings(temperature, humidity);
+  calculateAverages();
+  Serial.println("================================================================");
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.print(" | Predicted Temperature: ");
+  Serial.println(temperatureAverage);
+  
+  Serial.print("Humidity: ");
+  Serial.print(humidity);
+  Serial.print(" | Predicted Humidity: ");
+  Serial.println(humidityAverage);
+  
+  adjustIRLed(temperatureAverage, humidityAverage);
+  
+
+  
+  delay(1000);
+}
+
+void updateReadings(float temperature, float humidity) {
+  temperatureReadings[index] = temperature;
+  humidityReadings[index] = humidity;
+  index = (index + 1) % NUM_READINGS;
+}
+
+void calculateAverages() {
+  float temperatureSum = 0;
+  float humiditySum = 0;
+  
+  for (int i = 0; i < NUM_READINGS; i++) {
+    temperatureSum += temperatureReadings[i];
+    humiditySum += humidityReadings[i];
+  }
+  
+  temperatureAverage = temperatureSum / NUM_READINGS;
+  humidityAverage = humiditySum / NUM_READINGS;
+}
+
+void adjustIRLed(float temperature, float humidity) {
+ 
+  
+  if (temperature < 18 || temperature > 23 || humidity < 45 || humidity > 65) {
+    irsend.sendNEC(0xFF30CF, 32);  
+    Serial.println("IR signal sent");
+
+  if (irrecv.decode(&irResults)) {
+    Serial.println("");
+    Serial.print("Received IR signal: 0x");
+    Serial.println(irResults.value, HEX);
+    Serial.println("");
+    Serial.println("================================================================");
+    irrecv.resume(); 
+  }else{
+    Serial.println("沒接收到紅外信號");
+    Serial.println("================================================================");
+    irrecv.resume();
+  }
+  }
+}
